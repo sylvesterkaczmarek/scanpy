@@ -1,0 +1,63 @@
+name: Validate ComBat categorical backport
+
+on:
+  push:
+    branches: [validation/20261107-combat-4454]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.repository == 'sylvesterkaczmarek/scanpy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      MPLBACKEND: Agg
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      NUMBA_NUM_THREADS: '2'
+      REVIEW_OUTPUT: ${{ runner.temp }}/review-output
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Preserve validation scripts and check out the exact upstream base
+        run: |
+          cp -R .contribution-validation "$RUNNER_TEMP/contribution-checks"
+          git fetch --no-tags --depth=1 origin f044749be194031efa0087988b544dd59a19630b
+          git checkout --detach f044749be194031efa0087988b544dd59a19630b
+      - name: Install project and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest pytest-mock pytest-randomly pytest-rerunfailures pytest-xdist pytest-cov dependency-groups tuna ruff
+      - name: Reproduce the original failure and test the correction
+        run: python "$RUNNER_TEMP/contribution-checks/run.py"
+      - name: Publish only the validated candidate branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git diff --cached --check
+          git -c user.name='Sylvester Kaczmarek' -c user.email='16242628+sylvesterkaczmarek@users.noreply.github.com' commit -m 'fix: backport ComBat categorical reference coding to 1.12'
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w 0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" push https://github.com/sylvesterkaczmarek/scanpy.git HEAD:refs/heads/backport/4454-combat-categorical-1.12
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          record = {'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'branch': 'backport/4454-combat-categorical-1.12', 'base': 'f044749be194031efa0087988b544dd59a19630b', 'upstream_pr_submitted': False}
+          (Path(os.environ['REVIEW_OUTPUT']) / 'commit.json').write_text(json.dumps(record, indent=2))
+          print(json.dumps(record))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scanpy-4454-review
+          path: ${{ runner.temp }}/review-output
+          retention-days: 7
+          if-no-files-found: warn

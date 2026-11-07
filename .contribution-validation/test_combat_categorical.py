@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from anndata import AnnData
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix  # noqa: TID251
 
 import scanpy as sc
 from scanpy.preprocessing._combat import _design_matrix

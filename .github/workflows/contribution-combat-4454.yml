@@ -20,7 +20,7 @@ jobs:
       OPENBLAS_NUM_THREADS: '2'
       MKL_NUM_THREADS: '2'
       NUMBA_NUM_THREADS: '2'
-      REVIEW_OUTPUT: ${{ runner.temp }}/review-output
+      REVIEW_OUTPUT: /tmp/review-output
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,6 +58,6 @@ jobs:
         if: always()
         with:
           name: scanpy-4454-review
-          path: ${{ runner.temp }}/review-output
+          path: /tmp/review-output
           retention-days: 7
           if-no-files-found: warn
